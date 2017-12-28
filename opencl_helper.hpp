@@ -295,7 +295,7 @@ protected:
 	
 public:
 	OpenCLBufferBase(OpenCLController &controller, unsigned int size, cl_mem_flags rwflag)
-		: controller(controller), size(size), mappedPointer(nullptr), readWriteMode(OPENCL_READ_BUFFER)
+		: controller(controller), size(size), mappedPointer(nullptr), readWriteMode(OPENCL_READ_BUFFER | OPENCL_WRITE_BUFFER)
 	{
 		cl_int err;
 		try
