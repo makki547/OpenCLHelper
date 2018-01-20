@@ -4,7 +4,8 @@
 #ifdef __APPLE__
 #include <OpenCL/OpenCL.h> //For Mac
 #else
-#include <CL/CL.h>
+#pragma warning(disable : 4996)
+#include <CL/cl.h>
 #endif
 
 #include <iostream>
