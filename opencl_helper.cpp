@@ -1,223 +1,414 @@
 #include "opencl_helper.hpp"
 
+std::string opencl_helper::OpenCLException::GetErrorName(cl_int err)
+{
 
-std::ostream& operator<<(std::ostream& os, const OpenCLException& exception)
+	std::unordered_map<cl_int, std::string> errorCodes
+	{
+		{CL_SUCCESS, std::string("CL_SUCCESS")},
+		{CL_DEVICE_NOT_FOUND, std::string("CL_DEVICE_NOT_FOUND")},
+		{CL_DEVICE_NOT_AVAILABLE, std::string("CL_DEVICE_NOT_AVAILABLE")},
+		{CL_COMPILER_NOT_AVAILABLE, std::string("CL_COMPILER_NOT_AVAILABLE")},
+		{CL_MEM_OBJECT_ALLOCATION_FAILURE, std::string("CL_MEM_OBJECT_ALLOCATION_FAILURE")},
+		{CL_OUT_OF_RESOURCES, std::string("CL_OUT_OF_RESOURCES")},
+		{CL_OUT_OF_HOST_MEMORY, std::string("CL_OUT_OF_HOST_MEMORY")},
+		{CL_PROFILING_INFO_NOT_AVAILABLE, std::string("CL_PROFILING_INFO_NOT_AVAILABLE")},
+		{CL_MEM_COPY_OVERLAP, std::string("CL_MEM_COPY_OVERLAP")},
+		{CL_IMAGE_FORMAT_MISMATCH, std::string("CL_IMAGE_FORMAT_MISMATCH")},
+		{CL_IMAGE_FORMAT_NOT_SUPPORTED, std::string("CL_IMAGE_FORMAT_NOT_SUPPORTED")},
+		{CL_BUILD_PROGRAM_FAILURE, std::string("CL_BUILD_PROGRAM_FAILURE")},
+		{CL_MAP_FAILURE, std::string("CL_MAP_FAILURE")},
+		{CL_MISALIGNED_SUB_BUFFER_OFFSET, std::string("CL_MISALIGNED_SUB_BUFFER_OFFSET")},
+		{CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST, std::string("CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST")},
+		{CL_COMPILE_PROGRAM_FAILURE, std::string("CL_COMPILE_PROGRAM_FAILURE")},
+		{CL_LINKER_NOT_AVAILABLE, std::string("CL_LINKER_NOT_AVAILABLE")},
+		{CL_LINK_PROGRAM_FAILURE, std::string("CL_LINK_PROGRAM_FAILURE")},
+		{CL_DEVICE_PARTITION_FAILED, std::string("CL_DEVICE_PARTITION_FAILED")},
+		{CL_KERNEL_ARG_INFO_NOT_AVAILABLE, std::string("CL_KERNEL_ARG_INFO_NOT_AVAILABLE")},
+		{CL_INVALID_VALUE, std::string("CL_INVALID_VALUE")},
+		{CL_INVALID_DEVICE_TYPE, std::string("CL_INVALID_DEVICE_TYPE")},
+		{CL_INVALID_PLATFORM, std::string("CL_INVALID_PLATFORM")},
+		{CL_INVALID_DEVICE, std::string("CL_INVALID_DEVICE")},
+		{CL_INVALID_CONTEXT, std::string("CL_INVALID_CONTEXT")},
+		{CL_INVALID_QUEUE_PROPERTIES, std::string("CL_INVALID_QUEUE_PROPERTIES")},
+		{CL_INVALID_COMMAND_QUEUE, std::string("CL_INVALID_COMMAND_QUEUE")},
+		{CL_INVALID_HOST_PTR, std::string("CL_INVALID_HOST_PTR")},
+		{CL_INVALID_MEM_OBJECT, std::string("CL_INVALID_MEM_OBJECT")},
+		{CL_INVALID_IMAGE_FORMAT_DESCRIPTOR, std::string("CL_INVALID_IMAGE_FORMAT_DESCRIPTOR")},
+		{CL_INVALID_IMAGE_SIZE, std::string("CL_INVALID_IMAGE_SIZE")},
+		{CL_INVALID_SAMPLER, std::string("CL_INVALID_SAMPLER")},
+		{CL_INVALID_BINARY, std::string("CL_INVALID_BINARY")},
+		{CL_INVALID_BUILD_OPTIONS, std::string("CL_INVALID_BUILD_OPTIONS")},
+		{CL_INVALID_PROGRAM, std::string("CL_INVALID_PROGRAM")},
+		{CL_INVALID_PROGRAM_EXECUTABLE, std::string("CL_INVALID_PROGRAM_EXECUTABLE")},
+		{CL_INVALID_KERNEL_NAME, std::string("CL_INVALID_KERNEL_NAME")},
+		{CL_INVALID_KERNEL_DEFINITION, std::string("CL_INVALID_KERNEL_DEFINITION")},
+		{CL_INVALID_KERNEL, std::string("CL_INVALID_KERNEL")},
+		{CL_INVALID_ARG_INDEX, std::string("CL_INVALID_ARG_INDEX")},
+		{CL_INVALID_ARG_VALUE, std::string("CL_INVALID_ARG_VALUE")},
+		{CL_INVALID_ARG_SIZE, std::string("CL_INVALID_ARG_SIZE")},
+		{CL_INVALID_KERNEL_ARGS, std::string("CL_INVALID_KERNEL_ARGS")},
+		{CL_INVALID_WORK_DIMENSION, std::string("CL_INVALID_WORK_DIMENSION")},
+		{CL_INVALID_WORK_GROUP_SIZE, std::string("CL_INVALID_WORK_GROUP_SIZE")},
+		{CL_INVALID_WORK_ITEM_SIZE, std::string("CL_INVALID_WORK_ITEM_SIZE")},
+		{CL_INVALID_GLOBAL_OFFSET, std::string("CL_INVALID_GLOBAL_OFFSET")},
+		{CL_INVALID_EVENT_WAIT_LIST, std::string("CL_INVALID_EVENT_WAIT_LIST")},
+		{CL_INVALID_EVENT, std::string("CL_INVALID_EVENT")},
+		{CL_INVALID_OPERATION, std::string("CL_INVALID_OPERATION")},
+		{CL_INVALID_GL_OBJECT, std::string("CL_INVALID_GL_OBJECT")},
+		{CL_INVALID_BUFFER_SIZE, std::string("CL_INVALID_BUFFER_SIZE")},
+		{CL_INVALID_MIP_LEVEL, std::string("CL_INVALID_MIP_LEVEL")},
+		{CL_INVALID_GLOBAL_WORK_SIZE, std::string("CL_INVALID_GLOBAL_WORK_SIZE")},
+		{CL_INVALID_PROPERTY, std::string("CL_INVALID_PROPERTY")},
+		{CL_INVALID_IMAGE_DESCRIPTOR, std::string("CL_INVALID_IMAGE_DESCRIPTOR")},
+		{CL_INVALID_COMPILER_OPTIONS, std::string("CL_INVALID_COMPILER_OPTIONS")},
+		{CL_INVALID_LINKER_OPTIONS, std::string("CL_INVALID_LINKER_OPTIONS")},
+		{CL_INVALID_DEVICE_PARTITION_COUNT, std::string("CL_INVALID_DEVICE_PARTITION_COUNT")}
+	};
+	
+	std::string error;
+	try
+	{
+		error = errorCodes[err];
+	}
+	catch(std::out_of_range e)
+	{
+		error = std::string("Unknown error");
+	}
+	return error;	
+}
+
+std::ostream& operator<<(std::ostream& os, const opencl_helper::OpenCLException& exception)
 {
 	if(exception.errorDetail.empty())
 	{
-		os << "Function name: " << exception.errorFunction << ", Error: " << ShowError(exception.err) << "(" << exception.err << ")";
+		os << "Function name: " << exception.errorFunction << ", Error: " << exception.errorName << "(" << exception.err << ")";
 	}
 	else
 	{
-		os << "Function name: " << exception.errorFunction << "(" << exception.errorDetail  << "), Error: " << ShowError(exception.err) << "(" << exception.err << ")";		
+		os << "Function name: " << exception.errorFunction << "(" << exception.errorDetail  << "), Error: " << exception.errorName << "(" << exception.err << ")";		
 
 	}
 	return os;
 }
 
-OpenCLController::OpenCLController(cl_device_type openclDeviceType)
-{
 
+opencl_helper::OpenCLDevice::OpenCLDevice(cl_device_id deviceID)
+	: deviceID(deviceID)
+{
+	available = GetInformation<cl_bool>(CL_DEVICE_AVAILABLE);
+	hostUnifiedMemory = GetInformation<cl_bool>(CL_DEVICE_HOST_UNIFIED_MEMORY);
+	vendor = GetInformation(CL_DEVICE_VENDOR);
+	name = GetInformation(CL_DEVICE_NAME);
+	version = GetInformation(CL_DEVICE_VERSION);
+		  
+}
+
+opencl_helper::OpenCLDeviceIDList opencl_helper::OpenCLDevices::GetDeviceIDList()
+{
+	OpenCLDeviceIDList devlist;
+	devlist.reserve(size());
+	
+	for(auto itr = begin();itr != end();++itr)
+	{
+		if(*itr)
+		{
+			devlist.push_back(itr->GetDeviceID());
+		}
+	}
+	
+	return std::move(devlist);
+}
+
+std::ostream& operator<<(std::ostream& os, const opencl_helper::OpenCLDevice& device)
+{
+	os << "Device name: " << device.name << std::endl;
+	os << "Vendor: " << device.vendor << std::endl;
+	os << "Version: " << device.version << std::endl;
+	os << "Unified memory available: " << (device.hostUnifiedMemory ? "Yes" : "No") << std::endl;
+	os << std::endl;
+	return os;
+}
+
+
+std::vector<std::string> opencl_helper::OpenCLPlatformInformations::GetVendors()
+{
+	std::vector<std::string> vendors;
+	vendors.reserve(size());
+	for(auto itr = begin();itr != end();++itr)
+	{
+		vendors.push_back(itr->vendor);
+	}
+	return std::move(vendors);
+}
+
+std::vector<std::string> opencl_helper::OpenCLPlatformInformations::GetVersions()
+{
+	std::vector<std::string> versions;
+	versions.reserve(size());
+	for(auto itr = begin();itr != end();++itr)
+	{
+		versions.push_back(itr->version);
+	}
+	return std::move(versions);
+}
+
+opencl_helper::OpenCLPlatforms::OpenCLPlatforms(cl_device_type openclDeviceType)
+{
+	cl_int err;
+
+	cl_platform_id platforms[PLATFORM_MAX];
+	cl_device_id devices[DEVICE_MAX];
+	char vendor[100] = {0};
+	char version[100] = {0};
 	char deviceName[100] = {0};
-	size_t resultLength;
-
-	cl_int err;
-
-	bool contextInitialized = false;
-	bool queueInitalized = false;
-	try
+	cl_uint nplatforms;
+	cl_uint ndevices;
+	size_t reslen;
+		
+	err = clGetPlatformIDs(PLATFORM_MAX, platforms, &nplatforms);
+	if(err != CL_SUCCESS)
 	{
+		throw OpenCLException(err, "clGetPlatformIDs");
+	}
+	if(nplatforms == 0)
+	{
+		throw OpenCLException(err, "clGetPlatformIDs", "No platforms");			
+	}
 
-		err = clGetPlatformIDs(PLATFORM_MAX, platforms, &nplatforms);
-		if(err != CL_SUCCESS) throw OpenCLException(err, "clGetPlatformIDs");
-		if(nplatforms == 0)
-		{
-			err = CL_INVALID_VALUE;
-			std::cerr << "No platforms." << std::endl;
-			throw OpenCLException(err, "clGetPlatformIDs");
-		}
+	platformInformations.resize(nplatforms);
+	for(cl_uint i = 0;i < nplatforms;i++)
+	{
+		platformInformations[i].platformID = platforms[i];
 
-	
-		for(int i = 0;i < nplatforms;i++)
-		{
-			char vendor[100] = {0};
-			char version[100] = {0};
         
-			err = clGetPlatformInfo(platforms[i], CL_PLATFORM_VENDOR, sizeof(vendor), vendor, 0);
-			if(err != CL_SUCCESS) throw OpenCLException(err, "clGetPlatformInfo", "CL_PLATFORM_VENDOR");
+		err = clGetPlatformInfo(platformInformations[i].platformID, CL_PLATFORM_VENDOR, sizeof(vendor), vendor, 0);
+		if(err != CL_SUCCESS) throw OpenCLException(err, "clGetPlatformInfo", "CL_PLATFORM_VENDOR");
 
-			err = clGetPlatformInfo(platforms[i], CL_PLATFORM_VERSION, sizeof(version), version, 0);
-			if(err != CL_SUCCESS) throw OpenCLException(err, "clGetPlatformInfo", "CL_PLATFORM_VERSION");
-			std::cerr << "Platform id:" << platforms[i] << ", Vendor: " << vendor << ", Version: " << version << std::endl;
-		}	
+		platformInformations[i].vendor = std::string(vendor);
 
+		err = clGetPlatformInfo(platformInformations[i].platformID, CL_PLATFORM_VERSION, sizeof(version), version, 0);
+		if(err != CL_SUCCESS) throw OpenCLException(err, "clGetPlatformInfo", "CL_PLATFORM_VERSION");
+		platformInformations[i].version = std::string(version);
 
-		//Get device(GPU) information
-		err = clGetDeviceIDs(platforms[0], openclDeviceType, DEVICE_MAX, devices, &ndevices);
+			
+		err = clGetDeviceIDs(platformInformations[i].platformID, openclDeviceType, DEVICE_MAX, devices, &ndevices);
 		if(err != CL_SUCCESS) throw OpenCLException(err, "clGetDeviceIDs");
-		
-		if(ndevices == 0)
+
+		platformInformations[i].devices.reserve(ndevices);
+			
+		for(cl_uint j = 0;j < ndevices;j++)
 		{
-
-			err = CL_INVALID_DEVICE;
-			std::cerr << "No devices." << std::endl;
-			throw OpenCLException(err, "clGetPlatformIDs");
-
-		}
-    
-		std::cerr << ndevices << " device(s) found, first device will be used." << std::endl;
-		err = clGetDeviceInfo(devices[0], CL_DEVICE_NAME, sizeof(deviceName), deviceName, &resultLength);
-		if(err != CL_SUCCESS) throw OpenCLException(err, "clGetDeviceInfo", "CL_DEVICE_NAME");
-		
-		std::cerr << "Device name: " << deviceName << std::endl;
-
-
-
-		err = clGetDeviceInfo(devices[0], CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE, sizeof(cl_ulong), &constantMemSize, &resultLength);
-		if(err != CL_SUCCESS) throw OpenCLException(err, "clGetDeviceInfo", "CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE");
-
-
-
-		err = clGetDeviceInfo(devices[0], CL_DEVICE_HOST_UNIFIED_MEMORY, sizeof(cl_bool), &unifiedMemoryAvailable, &resultLength);
-		if(err != CL_SUCCESS) throw OpenCLException(err, "clGetDeviceInfo", "CL_DEVICE_HOST_UNIFIED_MEMORY");
-
-		
-		context = clCreateContext(nullptr, 1, devices, nullptr, nullptr, &err);
-		if(err != CL_SUCCESS)
-		{
-			throw OpenCLException(err, "clCreateContext");
-		}
-		contextInitialized = true;
-
-		
-		queue = clCreateCommandQueue(context, devices[0], 0, &err);
-
-		if(err != CL_SUCCESS)
-		{
-			throw OpenCLException(err, "clCreateCommandQueue");
-		}
-		queueInitalized = true;
-	}
-	catch(OpenCLException exception)
-	{
-		if(queueInitalized)
-		{
-			clReleaseCommandQueue(queue);
+			OpenCLDevice dev(devices[j]);
+			if(dev)
+			{
+				platformInformations[i].devices.push_back(dev);
+			}
 		}
 
-		if(contextInitialized)
-		{
-			clReleaseContext(context);
-		}
-		throw exception;
 	}
 	
 }
 
-OpenCLController::~OpenCLController()
-{
-	clReleaseCommandQueue(queue);
-	clReleaseContext(context);
-}
 
-
-OpenCLKernel::OpenCLKernel(OpenCLProgram& program, std::string name)
-	: program(program), name(name)
+unsigned int opencl_helper::OpenCLPlatforms::CountDevices(unsigned int platformIndex)
 {
+	unsigned int n = 0;
 	try
 	{
-		cl_int err;
-		kernel = clCreateKernel(OpenCLKernel::program.GetProgram(), name.c_str(), &err);
-		if(err != CL_SUCCESS)
-		{
-			throw OpenCLException(err, "clCreateKernel", name.c_str());
-		}		
+		n = platformInformations.at(platformIndex).devices.size();
 	}
-	catch(OpenCLException exception)
+	catch(std::out_of_range e)
 	{
-		throw exception;
+		throw OpenCLException(CL_INVALID_PLATFORM, "OpenCLPlatforms::CountDevices", "Invalid platform index");
 	}
+	return n;
 }
 
-OpenCLKernel::~OpenCLKernel()
+
+opencl_helper::OpenCLDevices opencl_helper::OpenCLPlatforms::GetDeviceList(unsigned int platformIndex, std::vector<unsigned int> deviceIndices)
 {
+	OpenCLDevices devices;
 
-	clReleaseKernel(kernel);
-
-}
-
-cl_event OpenCLKernel::Execute(cl_uint ndim, const std::vector<size_t> &globalWorkSize, const std::vector<size_t> &localWorkSize)
-{
-	cl_event event;
 
 	try
 	{
-		if(ndim == 0 || 4 <= ndim)
-		{
-			throw OpenCLException(CL_INVALID_VALUE, "clEnqueueNDRangeKernel", name.c_str());
-		}
-		if(globalWorkSize.size() != ndim)
-		{
-			throw OpenCLException(CL_INVALID_VALUE, "clEnqueueNDRangeKernel", name.c_str());
-		}
-		if(localWorkSize.size() != ndim)
-		{
-			throw OpenCLException(CL_INVALID_VALUE, "clEnqueueNDRangeKernel", name.c_str());
-		}
-		
-		cl_int err = clEnqueueNDRangeKernel(program.GetQueue(), kernel, ndim, nullptr, globalWorkSize.data(), localWorkSize.data(), 0, nullptr, &event);
+		devices.reserve(deviceIndices.size());
 
-		if(err != CL_SUCCESS)
+		for(auto itr = deviceIndices.begin();itr != deviceIndices.end();++itr)
 		{
-			throw OpenCLException(err, "clEnqueueNDRangeKernel", name.c_str());
+			devices.push_back(platformInformations.at(platformIndex).devices.at(*itr).GetDeviceID());
 		}
 	}
-	catch(OpenCLException exception)
+	catch(std::out_of_range e)
 	{
-		throw exception;
+		throw OpenCLException(CL_INVALID_PLATFORM, "OpenCLPlatforms::GetDeviceList", "Invalid platform and/or device index");				
 	}
 
+	return std::move(devices);
+}
+
+opencl_helper::OpenCLDevices opencl_helper::OpenCLPlatforms::GetDeviceList(unsigned int platformIndex)
+{
+
+	OpenCLDevices devices;
+
+	try
+	{
+		std::vector<unsigned int> deviceIndices(platformInformations.at(platformIndex).devices.size());
+		std::iota(deviceIndices.begin(), deviceIndices.end(), 0);
+		devices.reserve(deviceIndices.size());
+
+		devices = GetDeviceList(platformIndex, deviceIndices);
+				
+	}
+	catch(std::out_of_range e)
+	{
+		throw OpenCLException(CL_INVALID_PLATFORM, "OpenCLPlatforms::GetDeviceList", "Invalid platform index");				
+	}
 	
-	return event;
-}
+	return std::move(devices);
+}		
 
-cl_event OpenCLKernel::Execute(cl_uint ndim, const std::vector<size_t> &globalWorkSize)
+std::ostream& operator<<(std::ostream& os, const opencl_helper::OpenCLPlatforms& platforms)
 {
-	cl_event event;
 
-	try
+	unsigned int platformID = 0;
+	for(auto itr = platforms.platformInformations.begin(); itr != platforms.platformInformations.end();++itr)
 	{
-		if(ndim == 0 || 4 <= ndim)
-		{
-			throw OpenCLException(CL_INVALID_VALUE, "clEnqueueNDRangeKernel", name.c_str());
-		}
-		if(globalWorkSize.size() != ndim)
-		{
-			throw OpenCLException(CL_INVALID_VALUE, "clEnqueueNDRangeKernel", name.c_str());
-		}
-		
-		cl_int err = clEnqueueNDRangeKernel(program.GetQueue(), kernel, ndim, nullptr, globalWorkSize.data(), nullptr, 0, nullptr, &event);
+		os << "Platform index: " << platformID++ << std::endl;
+		os << std::endl;
+		os << "Platform vendor: " <<  itr->vendor << std::endl;
+		os << "Platform version: " <<  itr->version << std::endl;
+		os << std::endl;
 
-		if(err != CL_SUCCESS)
+		unsigned int deviceID = 0;
+		for(auto dev = itr->devices.begin();dev != itr->devices.end();++dev)
 		{
-			throw OpenCLException(err, "clEnqueueNDRangeKernel", name.c_str());
+			os << "Device index: " << deviceID++ << std::endl;
+			os << std::endl;			
+			os << *dev;
 		}
-	}
-	catch(OpenCLException exception)
-	{
-		throw exception;
-	}
 
-	
-	return event;
+		os << "----------------------------------------------------" << std::endl;
+		os << std::endl;
+		os << std::endl;
+			
+	}
+	return os;
 }
 
-OpenCLProgram::OpenCLProgram(OpenCLController& controller, std::string kernelFileName) :
-	controller(controller)
+opencl_helper::OpenCLDeviceQueue::OpenCLDeviceQueue(const opencl_helper::OpenCLDevice &device, opencl_helper::ContextWeakPtr context, bool enableOutOfOrderMode)
+	: device(device)
 {
 	cl_int err;
 
-	bool programInitialized = false;
+
+	if(context.expired())
+	{
+		throw OpenCLException(CL_INVALID_CONTEXT, "OpenCLDeviceQueue::OpenCLDeviceQueue");
+	}
+	ContextSharedPtr con = context.lock();
+
+	cl_bitfield mode = enableOutOfOrderMode ? CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE : 0;
+	
+	cl_command_queue q = clCreateCommandQueue(con.get(), OpenCLDeviceQueue::device.GetDeviceID(), mode, &err);
+	if(err != CL_SUCCESS)
+	{
+		throw OpenCLException(err, "clCreateCommandQueue");
+	}
+	queue = CommandQueueSharedPtr(q, OpenCLReleaseQueue());
+
+}
+
+opencl_helper::OpenCLContext::OpenCLContext(const opencl_helper::OpenCLDevices& devices, bool enableOutOfOrderMode)
+	: devices(devices)
+{
+	cl_int err;
+
+	if(devices.empty())
+	{
+		throw OpenCLException(CL_INVALID_DEVICE, "OpenCLContext::OpenCLContext", "Device list is empty.");
+	}
+	OpenCLDeviceIDList deviceList = OpenCLContext::devices.GetDeviceIDList();
+	cl_context con = clCreateContext(nullptr, deviceList.size(), &(deviceList[0]), nullptr, nullptr, &err);
+
+	if(err != CL_SUCCESS)
+	{
+		throw OpenCLException(err, "clCreateContext");
+	}
+
+	context = std::move(ContextSharedPtr(con, OpenCLReleaseContext()));
+
+	queues.reserve(devices.size());
+	unifiedMemoryAvailable = false;
+	for(auto itr = OpenCLContext::devices.begin();itr != OpenCLContext::devices.end();++itr)
+	{
+		queues.push_back(OpenCLDeviceQueue(*itr, context, enableOutOfOrderMode));
+		unifiedMemoryAvailable |= itr->UnifiedMemoryAvailable();
+	}
+}
+
+
+opencl_helper::CommandQueueWeakPtr opencl_helper::OpenCLContext::GetQueue(unsigned int deviceIndex)
+{
+	CommandQueueWeakPtr p;
+	try
+	{
+		p = queues.at(deviceIndex).GetQueue();
+	}
+	catch(std::out_of_range exception)
+	{
+		throw OpenCLException(CL_INVALID_DEVICE, "OpenCLContext::GetQueue");
+	}
+	return std::move(p);
+}
+
+void opencl_helper::OpenCLContext::WaitDevice(unsigned int deviceIndex)
+{
+	cl_int err;
+	try
+	{
+		CommandQueueWeakPtr p = queues.at(deviceIndex).GetQueue();
+		if(p.expired())
+		{
+			throw OpenCLException(CL_INVALID_DEVICE, "OpenCLContext::WaitDevice");
+		}
+		err = clFinish(p.lock().get());
+		if(err != CL_SUCCESS) throw OpenCLException(err, "clFinish");									
+	}
+	catch(OpenCLException exception)
+	{
+		throw exception;
+	}
+	catch(std::out_of_range oor)
+	{
+		throw OpenCLException(CL_INVALID_COMMAND_QUEUE, "clFinish", "Invalid device index");
+	}
+}
+
+void opencl_helper::OpenCLContext::Synchronize()
+{
+	cl_int err;
+
+	for(auto itr = queues.begin();itr != queues.end();++itr)
+	{
+		CommandQueueWeakPtr p = itr->GetQueue();
+		if(!p.expired())
+		{
+			err = clFinish(p.lock().get());					
+		}
+		if(err != CL_SUCCESS) throw OpenCLException(err, "clFinish");					
+	}				
+}
+
+opencl_helper::OpenCLProgram::OpenCLProgram(OpenCLContext &context, std::string kernelFileName)
+	: context(&context)
+{
+
+	cl_int err;
+
+
 	try
 	{
 		std::ifstream ifs(kernelFileName.c_str());
@@ -229,12 +420,21 @@ OpenCLProgram::OpenCLProgram(OpenCLController& controller, std::string kernelFil
 		size_t kernelLength = kernelSource.size();
 		const char* kernelSourcePointer  = kernelSource.c_str();
 
-		program = clCreateProgramWithSource(controller.GetContext(), 1, &kernelSourcePointer, &kernelLength, &err);
+		ContextWeakPtr wcon = OpenCLProgram::context->GetContext();
+
+		if(wcon.expired())
+		{
+			throw OpenCLException(CL_INVALID_CONTEXT, "OpenCLProgram::OpenCLProgram");
+		}
+
+		cl_program p = clCreateProgramWithSource(wcon.lock().get(), 1, &kernelSourcePointer, &kernelLength, &err);
+
 		if(err != CL_SUCCESS) throw OpenCLException(err, "clCreateProgramWithSource");
 
-
-		err = clBuildProgram(program, 1, controller.GetDevices(), nullptr, nullptr, nullptr);
-		if(err != CL_SUCCESS) throw OpenCLException(err, "clCreateProgramWithSource");
+		program = ProgramSharedPtr(p, OpenCLReleaseProgram());
+		OpenCLDeviceIDList devlist = OpenCLProgram::context->GetDeviceIDList();
+		err = clBuildProgram(program.get(), devlist.size(), &(devlist[0]), nullptr, nullptr, nullptr);
+		if(err != CL_SUCCESS) throw OpenCLException(err, "clBuildProgram");
 	}
 	catch(OpenCLException exception)
 	{
@@ -242,7 +442,7 @@ OpenCLProgram::OpenCLProgram(OpenCLController& controller, std::string kernelFil
 		
 		if(err == CL_BUILD_PROGRAM_FAILURE)
 		{
-			cl_int err = clGetProgramBuildInfo(program, *(controller.GetDevices()), CL_PROGRAM_BUILD_LOG, 1024, log, nullptr);
+			cl_int err = clGetProgramBuildInfo(program.get(), OpenCLProgram::context->GetDeviceIDList()[0], CL_PROGRAM_BUILD_LOG, 1024, log, nullptr);
 			if(err == CL_SUCCESS)
 			{
 				std::cerr << log << std::endl;
@@ -251,6 +451,7 @@ OpenCLProgram::OpenCLProgram(OpenCLController& controller, std::string kernelFil
 			{
 				std::cerr << OpenCLException(err, "clGetProgramBuild", "CL_PROGRAM_BUILD_LOG") << std::endl;
 			}
+			program.reset();
 			
 		}
 		throw exception;
@@ -258,15 +459,308 @@ OpenCLProgram::OpenCLProgram(OpenCLController& controller, std::string kernelFil
 	catch(std::ifstream::failure e)
 	{
 		throw OpenCLException(CL_INVALID_KERNEL, "OpenCLProgram::OpenCLProgram");
+	}	
+	
+}
+
+
+
+opencl_helper::OpenCLKernels opencl_helper::OpenCLProgram::GetKernels()
+{
+	cl_int err;
+	OpenCLKernels openclKernels;
+	constexpr cl_uint NUM_MAX_KERNELS = 1024;
+	cl_kernel kernels[NUM_MAX_KERNELS];
+	cl_uint nkernels = 0;
+
+
+	err = clCreateKernelsInProgram(program.get(), NUM_MAX_KERNELS, kernels, &nkernels);
+	if(err != CL_SUCCESS)
+	{
+		throw OpenCLException(err, "clCreateKernelsInProgram");
+	}
+		
+	for(cl_uint i = 0;i < nkernels;i++)
+	{
+		OpenCLKernel k(*this, kernels[i]);
+		openclKernels.emplace(k.GetName(), k);
+	}
+
+
+	return openclKernels;
+}
+
+
+
+opencl_helper::OpenCLKernel::OpenCLKernel(OpenCLProgram& program, std::string name)
+	: /*program(&program),*/ name(name)
+{
+
+	cl_int err;
+
+	//ProgramWeakPtr wprog = program.GetProgram();
+	context = program.GetContext();
+	OpenCLKernel::program = program.GetProgram();
+	if(OpenCLKernel::program.expired())
+	{
+		throw OpenCLException(CL_INVALID_PROGRAM, "OpenCLKernel::OpenCLKernel", name.c_str());			
+	}
+			
+		
+	cl_kernel ker = clCreateKernel(OpenCLKernel::program.lock().get(), name.c_str(), &err);
+		
+	if(err != CL_SUCCESS)
+	{
+		throw OpenCLException(err, "clCreateKernel", name.c_str());
+	}
+
+		
+	kernel = KernelUniquePtr(ker);		
+	cl_uint nargs;
+	err = clGetKernelInfo(kernel.get(), CL_KERNEL_NUM_ARGS, sizeof(cl_uint), &nargs, nullptr);
+	if(err != CL_SUCCESS)
+	{
+		kernel.reset();
+		throw OpenCLException(err, "clGetKernelInfo", name.c_str());
+	}
+	arguments.resize(nargs, Argument());
+
+}
+
+opencl_helper::OpenCLKernel::OpenCLKernel(OpenCLProgram& program, cl_kernel kernel)
+	: /*program(&program),*/ kernel(KernelUniquePtr(kernel))
+{
+
+	constexpr size_t KERNEL_NAME_SIZE = 1024;
+
+	cl_int err;		
+	cl_uint nargs;
+	char kernelName[KERNEL_NAME_SIZE];
+	size_t nameLength = KERNEL_NAME_SIZE;
+	context = program.GetContext();
+	OpenCLKernel::program = program.GetProgram();
+	err = clGetKernelInfo(OpenCLKernel::kernel.get(), CL_KERNEL_FUNCTION_NAME, sizeof(kernelName), kernelName, &nameLength);
+
+	name = std::string(kernelName);
+	if(err != CL_SUCCESS)
+	{
+		OpenCLKernel::kernel.reset();
+		throw OpenCLException(err, "clGetKernelInfo", kernelName);
+	}
+
+		
+	err = clGetKernelInfo(OpenCLKernel::kernel.get(), CL_KERNEL_NUM_ARGS, sizeof(cl_uint), &nargs, nullptr);
+	if(err != CL_SUCCESS)
+	{
+		OpenCLKernel::kernel.reset();			
+		throw OpenCLException(err, "clGetKernelInfo", name.c_str());
+	}
+	arguments.resize(nargs, Argument());
+
+}
+
+opencl_helper::OpenCLKernel::OpenCLKernel(const OpenCLKernel &openclKernel)
+	: name(openclKernel.name), program(openclKernel.program), arguments(openclKernel.arguments), context(openclKernel.context)
+{
+
+	cl_int err;
+
+	//ProgramWeakPtr wprog = OpenCLKernel::program->GetProgram();
+	if(program.expired())
+	{
+		throw OpenCLException(CL_INVALID_PROGRAM, "OpenCLKernel::OpenCLKernel", name.c_str());			
+	}		
+	cl_kernel ker = clCreateKernel(program.lock().get(), name.c_str(), &err);
+	if(err != CL_SUCCESS)
+	{
+		throw OpenCLException(err, "clCreateKernel", name.c_str());
+	}
+	kernel = KernelUniquePtr(ker);
+
+	for(unsigned int i = 0;i < OpenCLKernel::arguments.size();i++)
+	{
+		if(OpenCLKernel::arguments[i].address == nullptr) continue;
+		err = clSetKernelArg(kernel.get(), (cl_int)i, OpenCLKernel::arguments[i].size, OpenCLKernel::arguments[i].address);
+		if(err != CL_SUCCESS)
+		{
+			kernel.reset();
+			throw OpenCLException(err, "clSetKernelArg", name.c_str());
+		}
 	}
 	
 }
 
-OpenCLProgram::~OpenCLProgram()
+opencl_helper::OpenCLKernel& opencl_helper::OpenCLKernel::operator=(const opencl_helper::OpenCLKernel &src)
 {
-			
-	clReleaseProgram(program);
+	if(this == &src)
+	{
+		return *this;
+	}
 
+
+	program = src.program;
+	arguments = src.arguments;
+	name = src.name;
+	context = src.context;
+
+	
+
+	cl_int err;
+	
+	//ProgramWeakPtr wprog = program->GetProgram();
+	if(program.expired())
+	{
+		throw OpenCLException(CL_INVALID_PROGRAM, "OpenCLKernel::operator=", name.c_str());			
+	}		
+	cl_kernel ker = clCreateKernel(program.lock().get(), name.c_str(), &err);
+	if(err != CL_SUCCESS)
+	{
+		throw OpenCLException(err, "clCreateKernel", name.c_str());
+	}
+	kernel = KernelUniquePtr(ker);
+
+	for(unsigned int i = 0;i < arguments.size();i++)
+	{
+		if(arguments[i].address == nullptr) continue;
+		err = clSetKernelArg(kernel.get(), (cl_int)i, arguments[i].size, arguments[i].address);
+		if(err != CL_SUCCESS)
+		{
+			kernel.reset();
+			throw OpenCLException(err, "clSetKernelArg", name.c_str());
+		}
+	}
+	
+	return *this;
 }
+
+
+opencl_helper::OpenCLEvent opencl_helper::OpenCLKernel::Execute(opencl_helper::CommandQueueWeakPtr queue, cl_uint ndim, const std::vector<size_t> &globalWorkSize, const std::vector<size_t> &localWorkSize)
+{
+	cl_event event;
+	if(ndim == 0 || 4 <= ndim)
+	{
+		throw OpenCLException(CL_INVALID_VALUE, "clEnqueueNDRangeKernel", name.c_str());
+	}
+	if(globalWorkSize.size() != ndim)
+	{
+		throw OpenCLException(CL_INVALID_VALUE, "clEnqueueNDRangeKernel", name.c_str());
+	}
+	if(localWorkSize.size() != ndim)
+	{
+		throw OpenCLException(CL_INVALID_VALUE, "clEnqueueNDRangeKernel", name.c_str());
+	}
+
+
+	if(queue.expired())
+	{
+		throw OpenCLException(CL_INVALID_CONTEXT, "OpenCLKernel::Execute");
+	}
+		
+	cl_int err = clEnqueueNDRangeKernel(queue.lock().get(), kernel.get(), ndim, nullptr, globalWorkSize.data(), localWorkSize.data(), 0, nullptr, &event);
+
+	if(err != CL_SUCCESS)
+	{
+		throw OpenCLException(err, "clEnqueueNDRangeKernel", name.c_str());
+	}
+
+
+	return std::move(OpenCLEvent(event));	
+}
+
+opencl_helper::OpenCLEvent opencl_helper::OpenCLKernel::Execute(opencl_helper::CommandQueueWeakPtr queue, cl_uint ndim, const std::vector<size_t> &globalWorkSize)
+{
+	cl_event event;
+
+	if(ndim == 0 || 4 <= ndim)
+	{
+		throw OpenCLException(CL_INVALID_VALUE, "clEnqueueNDRangeKernel", name.c_str());
+	}
+	if(globalWorkSize.size() != ndim)
+	{
+		throw OpenCLException(CL_INVALID_VALUE, "clEnqueueNDRangeKernel", name.c_str());
+	}
+
+	if(queue.expired())
+	{
+		throw OpenCLException(CL_INVALID_CONTEXT, "OpenCLKernel::Execute");
+	}		
+		
+	cl_int err = clEnqueueNDRangeKernel(queue.lock().get(), kernel.get(), ndim, nullptr, globalWorkSize.data(), nullptr, 0, nullptr, &event);
+
+	if(err != CL_SUCCESS)
+	{
+		throw OpenCLException(err, "clEnqueueNDRangeKernel", name.c_str());
+	}
+
+
+	
+	return std::move(OpenCLEvent(event));		
+}
+
+
+
+opencl_helper::OpenCLEvent opencl_helper::OpenCLKernel::Execute(opencl_helper::CommandQueueWeakPtr queue, cl_uint ndim, const std::vector<size_t> &globalWorkSize, const std::vector<size_t> &localWorkSize, opencl_helper::OpenCLEventList &eventWaitList)
+{
+	cl_event event;
+	if(ndim == 0 || 4 <= ndim)
+	{
+		throw OpenCLException(CL_INVALID_VALUE, "clEnqueueNDRangeKernel", name.c_str());
+	}
+	if(globalWorkSize.size() != ndim)
+	{
+		throw OpenCLException(CL_INVALID_VALUE, "clEnqueueNDRangeKernel", name.c_str());
+	}
+	if(localWorkSize.size() != ndim)
+	{
+		throw OpenCLException(CL_INVALID_VALUE, "clEnqueueNDRangeKernel", name.c_str());
+	}
+
+
+	if(queue.expired())
+	{
+		throw OpenCLException(CL_INVALID_CONTEXT, "OpenCLKernel::Execute");
+	}
+		
+	cl_int err = clEnqueueNDRangeKernel(queue.lock().get(), kernel.get(), ndim, nullptr, globalWorkSize.data(), localWorkSize.data(), eventWaitList.size(), eventWaitList.GetList(), &event);
+
+	if(err != CL_SUCCESS)
+	{
+		throw OpenCLException(err, "clEnqueueNDRangeKernel", name.c_str());
+	}
+
+
+	return std::move(OpenCLEvent(event));	
+}
+
+opencl_helper::OpenCLEvent opencl_helper::OpenCLKernel::Execute(opencl_helper::CommandQueueWeakPtr queue, cl_uint ndim, const std::vector<size_t> &globalWorkSize, opencl_helper::OpenCLEventList &eventWaitList)
+{
+	cl_event event;
+
+	if(ndim == 0 || 4 <= ndim)
+	{
+		throw OpenCLException(CL_INVALID_VALUE, "clEnqueueNDRangeKernel", name.c_str());
+	}
+	if(globalWorkSize.size() != ndim)
+	{
+		throw OpenCLException(CL_INVALID_VALUE, "clEnqueueNDRangeKernel", name.c_str());
+	}
+
+	if(queue.expired())
+	{
+		throw OpenCLException(CL_INVALID_CONTEXT, "OpenCLKernel::Execute");
+	}		
+		
+	cl_int err = clEnqueueNDRangeKernel(queue.lock().get(), kernel.get(), ndim, nullptr, globalWorkSize.data(), nullptr, eventWaitList.size(), eventWaitList.GetList(), &event);
+
+	if(err != CL_SUCCESS)
+	{
+		throw OpenCLException(err, "clEnqueueNDRangeKernel", name.c_str());
+	}
+
+
+	
+	return std::move(OpenCLEvent(event));		
+}
+
 
 
