@@ -92,6 +92,88 @@ std::ostream& operator<<(std::ostream& os, const opencl_helper::OpenCLException&
 	return os;
 }
 
+std::ostream& operator<<(std::ostream& os, const opencl_helper::OpenCLEvent& event)
+{
+	std::unordered_map<cl_command_type, std::string> commandTypeCodes
+	{
+		{ CL_COMMAND_NDRANGE_KERNEL, std::string("CL_COMMAND_NDRANGE_KERNEL") },
+		{ CL_COMMAND_TASK, std::string("CL_COMMAND_TASK") },
+		{ CL_COMMAND_NATIVE_KERNEL, std::string("CL_COMMAND_NATIVE_KERNEL") },
+		{ CL_COMMAND_READ_BUFFER, std::string("CL_COMMAND_READ_BUFFER") },
+		{ CL_COMMAND_WRITE_BUFFER, std::string("CL_COMMAND_WRITE_BUFFER") },
+		{ CL_COMMAND_COPY_BUFFER, std::string("CL_COMMAND_COPY_BUFFER") },
+		{ CL_COMMAND_READ_IMAGE, std::string("CL_COMMAND_READ_IMAGE") },
+		{ CL_COMMAND_WRITE_IMAGE, std::string("CL_COMMAND_WRITE_IMAGE") },
+		{ CL_COMMAND_COPY_IMAGE, std::string("CL_COMMAND_COPY_IMAGE") },
+		{ CL_COMMAND_COPY_IMAGE_TO_BUFFER, std::string("CL_COMMAND_COPY_IMAGE_TO_BUFFER") },
+		{ CL_COMMAND_COPY_BUFFER_TO_IMAGE, std::string("CL_COMMAND_COPY_BUFFER_TO_IMAGE") },
+		{ CL_COMMAND_MAP_BUFFER, std::string("CL_COMMAND_MAP_BUFFER") },
+		{ CL_COMMAND_MAP_IMAGE, std::string("CL_COMMAND_MAP_IMAGE") },
+		{ CL_COMMAND_UNMAP_MEM_OBJECT, std::string("CL_COMMAND_UNMAP_MEM_OBJECT") },
+		{ CL_COMMAND_MARKER, std::string("CL_COMMAND_MARKER") },
+		{ CL_COMMAND_ACQUIRE_GL_OBJECTS, std::string("CL_COMMAND_ACQUIRE_GL_OBJECTS") },
+		{ CL_COMMAND_RELEASE_GL_OBJECTS, std::string("CL_COMMAND_RELEASE_GL_OBJECTS") },
+		{ CL_COMMAND_READ_BUFFER_RECT, std::string("CL_COMMAND_READ_BUFFER_RECT") },
+		{ CL_COMMAND_WRITE_BUFFER_RECT, std::string("CL_COMMAND_WRITE_BUFFER_RECT") },
+		{ CL_COMMAND_COPY_BUFFER_RECT, std::string("CL_COMMAND_COPY_BUFFER_RECT") },
+		{ CL_COMMAND_USER, std::string("CL_COMMAND_USER") },
+		{ CL_COMMAND_BARRIER, std::string("CL_COMMAND_BARRIER") },
+		{ CL_COMMAND_MIGRATE_MEM_OBJECTS, std::string("CL_COMMAND_MIGRATE_MEM_OBJECTS") },
+		{ CL_COMMAND_FILL_BUFFER, std::string("CL_COMMAND_FILL_BUFFER") },
+		{ CL_COMMAND_FILL_IMAGE, std::string("CL_COMMAND_FILL_IMAGE") }
+#ifdef OCL_HELPER_V2_SUPPORT
+		,
+		{ CL_COMMAND_SVM_FREE, std::string("CL_COMMAND_SVM_FREE") },
+		{ CL_COMMAND_SVM_MEMCPY, std::string("CL_COMMAND_SVM_MEMCPY") },
+		{ CL_COMMAND_SVM_MEMFILL, std::string("CL_COMMAND_SVM_MEMFILL") },
+		{ CL_COMMAND_SVM_MAP, std::string("CL_COMMAND_SVM_MAP") },
+		{ CL_COMMAND_SVM_UNMAP, std::string("CL_COMMAND_SVM_UNMAP") }
+#endif
+	};
+
+	std::unordered_map<cl_int, std::string> statusCodes
+	{
+		{ CL_COMPLETE, std::string("Complete")},
+		{ CL_RUNNING, std::string("Running") },
+		{ CL_SUBMITTED, std::string("Submitted") },
+		{ CL_QUEUED, std::string("Queued") },
+	};
+
+	std::string cmd;
+	std::string status;
+	const_cast<opencl_helper::OpenCLEvent&>(event).GetEventCommandType();
+	const_cast<opencl_helper::OpenCLEvent&>(event).GetStatus();
+
+	try
+	{
+		cmd = commandTypeCodes.at(event.cmdType);
+	}
+	catch (std::out_of_range exception)
+	{
+		cmd = std::string("Unknown");
+	}
+
+	try
+	{
+		status = statusCodes.at(event.status);
+	}
+	catch (std::out_of_range exception)
+	{
+		status = std::string("Unknown");
+	}
+
+	os << "Command: " << cmd << ", Status: " << status;
+	return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const opencl_helper::OpenCLEvents& events)
+{
+	for (auto itr = events.begin(); itr != events.end(); ++itr)
+	{
+		os << "Name: " << itr->first << ", " << itr->second << std::endl;
+	}
+	return os;
+}
 
 opencl_helper::OpenCLDevice::OpenCLDevice(cl_device_id deviceID)
 	: deviceID(deviceID)
@@ -101,6 +183,9 @@ opencl_helper::OpenCLDevice::OpenCLDevice(cl_device_id deviceID)
 	vendor = GetInformation(CL_DEVICE_VENDOR);
 	name = GetInformation(CL_DEVICE_NAME);
 	version = GetInformation(CL_DEVICE_VERSION);
+#ifdef OCL_HELPER_V2_SUPPORT
+	svmCapabilities = GetInformation<cl_device_svm_capabilities>(CL_DEVICE_SVM_CAPABILITIES);
+#endif
 		  
 }
 
@@ -125,7 +210,61 @@ std::ostream& operator<<(std::ostream& os, const opencl_helper::OpenCLDevice& de
 	os << "Device name: " << device.name << std::endl;
 	os << "Vendor: " << device.vendor << std::endl;
 	os << "Version: " << device.version << std::endl;
+
+#ifdef OCL_HELPER_V2_SUPPORT
+
+
+
+	os << "Unified memory (ALLOC_HOST_PTR) available: " << (device.hostUnifiedMemory ? "Yes" : "No") << std::endl;
+	os << "SVM Capabilities: ";
+	if (device.svmCapabilities)
+	{
+		if (device.svmCapabilities & CL_DEVICE_SVM_FINE_GRAIN_SYSTEM)
+		{
+			os << "Fine grain system";
+		}
+		else if (device.svmCapabilities & CL_DEVICE_SVM_FINE_GRAIN_BUFFER)
+		{
+			os << "Fine grain buffer";
+		}
+		else if (device.svmCapabilities & CL_DEVICE_SVM_COARSE_GRAIN_BUFFER)
+		{
+			os << "Coarse grain buffer";
+		}
+		os << std::endl;
+
+		os << "\tMemory allocation: ";
+		if (device.svmCapabilities & CL_DEVICE_SVM_FINE_GRAIN_SYSTEM)
+		{
+			os << "Malloc";
+		}
+		else
+		{
+			os << "clSVMalloc";
+		}
+		os << std::endl;
+		os << "\tMemory consistency: ";
+		if (device.svmCapabilities & CL_DEVICE_SVM_FINE_GRAIN_BUFFER)
+		{
+			os << "Guaranteed";
+		}
+		else
+		{
+			os << "No, Use map/unmap";
+		}
+		os << std::endl;
+
+		os << "\tSupport atomic operations: " << ((device.svmCapabilities & CL_DEVICE_SVM_ATOMICS) ? "Yes" : "No") << std::endl;
+
+	}
+	else
+	{
+		os << "No" << std::endl;
+	}
+
+#else
 	os << "Unified memory available: " << (device.hostUnifiedMemory ? "Yes" : "No") << std::endl;
+#endif
 	os << std::endl;
 	return os;
 }
@@ -342,10 +481,17 @@ opencl_helper::OpenCLContext::OpenCLContext(const opencl_helper::OpenCLDevices& 
 
 	queues.reserve(devices.size());
 	unifiedMemoryAvailable = false;
+#ifdef OCL_HELPER_V2_SUPPORT
+	svmCapabilities = 0;
+#endif
 	for(auto itr = OpenCLContext::devices.begin();itr != OpenCLContext::devices.end();++itr)
 	{
 		queues.push_back(OpenCLDeviceQueue(*itr, context, enableOutOfOrderMode));
 		unifiedMemoryAvailable |= itr->UnifiedMemoryAvailable();
+
+#ifdef OCL_HELPER_V2_SUPPORT
+		svmCapabilities |= itr->SVMCapabilities();
+#endif
 	}
 }
 
@@ -433,7 +579,13 @@ opencl_helper::OpenCLProgram::OpenCLProgram(OpenCLContext &context, std::string 
 
 		program = ProgramSharedPtr(p, OpenCLReleaseProgram());
 		OpenCLDeviceIDList devlist = OpenCLProgram::context->GetDeviceIDList();
-		err = clBuildProgram(program.get(), devlist.size(), &(devlist[0]), nullptr, nullptr, nullptr);
+		err = clBuildProgram(program.get(), devlist.size(), &(devlist[0]),
+#ifdef OCL_HELPER_V2_SUPPORT
+			"-cl-std=CL2.0",
+#else
+			nullptr,
+#endif
+			nullptr, nullptr);
 		if(err != CL_SUCCESS) throw OpenCLException(err, "clBuildProgram");
 	}
 	catch(OpenCLException exception)
@@ -560,7 +712,10 @@ opencl_helper::OpenCLKernel::OpenCLKernel(OpenCLProgram& program, cl_kernel kern
 }
 
 opencl_helper::OpenCLKernel::OpenCLKernel(const OpenCLKernel &openclKernel)
-	: name(openclKernel.name), program(openclKernel.program), arguments(openclKernel.arguments), context(openclKernel.context)
+	: name(openclKernel.name), program(openclKernel.program), arguments(openclKernel.arguments), context(openclKernel.context),
+#ifdef OCL_HELPER_V2_SUPPORT
+	svmPointers(openclKernel.svmPointers)
+#endif
 {
 
 	cl_int err;
@@ -577,15 +732,53 @@ opencl_helper::OpenCLKernel::OpenCLKernel(const OpenCLKernel &openclKernel)
 	}
 	kernel = KernelUniquePtr(ker);
 
-	for(unsigned int i = 0;i < OpenCLKernel::arguments.size();i++)
+	for(unsigned int i = 0;i < arguments.size();i++)
 	{
-		if(OpenCLKernel::arguments[i].address == nullptr) continue;
-		err = clSetKernelArg(kernel.get(), (cl_int)i, OpenCLKernel::arguments[i].size, OpenCLKernel::arguments[i].address);
+		if(!arguments[i].size) continue;
+#ifdef OCL_HELPER_V2_SUPPORT
+		if (arguments[i].svm)
+		{
+			err = clSetKernelArgSVMPointer(kernel.get(), (cl_uint)i,  (void*)arguments[i].address);
+		}
+		else
+		{
+#endif
+			if (arguments[i].address == nullptr)
+			{
+				if (arguments[i].buffer.expired())
+				{
+					throw OpenCLException(CL_INVALID_MEM_OBJECT, "OpenCLKernel::OpenCLKernel");
+				}
+				cl_mem mem = arguments[i].buffer.lock().get();
+				err = clSetKernelArg(kernel.get(), (cl_uint)i, sizeof(cl_mem), (void*)&mem);
+			}
+			else
+			{
+				err = clSetKernelArg(kernel.get(), (cl_uint)i, arguments[i].size, (void*)arguments[i].address);
+			}
+		
+#ifdef OCL_HELPER_V2_SUPPORT
+		}
+#endif
+
 		if(err != CL_SUCCESS)
 		{
-			kernel.reset();
+
 			throw OpenCLException(err, "clSetKernelArg", name.c_str());
 		}
+
+#ifdef OCL_HELPER_V2_SUPPORT
+		if (!svmPointers.empty())
+		{
+			err = clSetKernelExecInfo(kernel.get(), CL_KERNEL_EXEC_INFO_SVM_PTRS,
+				svmPointers.size() * sizeof(void*), svmPointers.GetList());
+
+			if (err != CL_SUCCESS)
+			{
+				throw OpenCLException(err, "clSetKernelExecInfo");
+			}
+		}
+#endif
 	}
 	
 }
@@ -602,6 +795,9 @@ opencl_helper::OpenCLKernel& opencl_helper::OpenCLKernel::operator=(const opencl
 	arguments = src.arguments;
 	name = src.name;
 	context = src.context;
+#ifdef OCL_HELPER_V2_SUPPORT
+	svmPointers = src.svmPointers;
+#endif
 
 	
 
@@ -619,16 +815,54 @@ opencl_helper::OpenCLKernel& opencl_helper::OpenCLKernel::operator=(const opencl
 	}
 	kernel = KernelUniquePtr(ker);
 
-	for(unsigned int i = 0;i < arguments.size();i++)
+	for (unsigned int i = 0; i < arguments.size(); i++)
 	{
-		if(arguments[i].address == nullptr) continue;
-		err = clSetKernelArg(kernel.get(), (cl_int)i, arguments[i].size, arguments[i].address);
-		if(err != CL_SUCCESS)
+		if (!arguments[i].size) continue;
+#ifdef OCL_HELPER_V2_SUPPORT
+		if (OpenCLKernel::arguments[i].svm)
 		{
-			kernel.reset();
+			err = clSetKernelArgSVMPointer(kernel.get(), (cl_uint)i, (void*)arguments[i].address);
+		}
+		else
+		{
+#endif
+			if (arguments[i].address == nullptr)
+			{
+				if (arguments[i].buffer.expired())
+				{
+					throw OpenCLException(CL_INVALID_MEM_OBJECT, "OpenCLKernel::OpenCLKernel");
+				}
+				cl_mem mem = arguments[i].buffer.lock().get();
+				err = clSetKernelArg(kernel.get(), (cl_uint)i, sizeof(cl_mem), (void*)&mem);
+			}
+			else
+			{
+				err = clSetKernelArg(kernel.get(), (cl_uint)i, arguments[i].size, (void*)arguments[i].address);
+			}
+
+#ifdef OCL_HELPER_V2_SUPPORT
+		}
+#endif
+
+		if (err != CL_SUCCESS)
+		{
 			throw OpenCLException(err, "clSetKernelArg", name.c_str());
 		}
 	}
+
+#ifdef OCL_HELPER_V2_SUPPORT
+	if (!svmPointers.empty())
+	{
+		err = clSetKernelExecInfo(kernel.get(), CL_KERNEL_EXEC_INFO_SVM_PTRS,
+			svmPointers.size() * sizeof(void*), svmPointers.GetList());
+
+		if (err != CL_SUCCESS)
+		{
+			throw OpenCLException(err, "clSetKernelExecInfo");
+		}
+	}
+
+#endif
 	
 	return *this;
 }

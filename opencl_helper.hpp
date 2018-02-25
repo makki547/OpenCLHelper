@@ -22,20 +22,25 @@
 #include <memory>
 #include <utility>
 #include <regex>
+#include <type_traits>
 
+#define OCL_HELPER_V2_SUPPORT
 
 namespace opencl_helper
 {
 	class OpenCLException;
 	class OpenCLDevice;
 	class OpenCLPlatforms;
+	class OpenCLEvent;
+	class OpenCLEvents;
 }
 
 std::ostream& operator<<(std::ostream& os, const opencl_helper::OpenCLException& exception);
 
 std::ostream& operator<<(std::ostream& os, const opencl_helper::OpenCLDevice& device);
 std::ostream& operator<<(std::ostream& os, const opencl_helper::OpenCLPlatforms& platforms);
-
+std::ostream& operator<<(std::ostream& os, const opencl_helper::OpenCLEvent& event);
+std::ostream& operator<<(std::ostream& os, const opencl_helper::OpenCLEvents& events);
 
 namespace opencl_helper
 {
@@ -111,7 +116,9 @@ namespace opencl_helper
 	typedef CommandQueueWeakPtr OpenCLCommandQueue;
 	typedef std::shared_ptr<_cl_program> ProgramSharedPtr;
 	typedef std::weak_ptr<_cl_program> ProgramWeakPtr;
-	typedef std::unique_ptr<_cl_mem, OpenCLReleaseMemObject> MemObjectUniquePtr;	
+	typedef std::unique_ptr<_cl_mem, OpenCLReleaseMemObject> MemObjectUniquePtr;
+	typedef std::shared_ptr<_cl_mem> MemObjectSharedPtr;
+	typedef std::weak_ptr<_cl_mem> MemObjectWeakPtr;
 	typedef std::unique_ptr<_cl_kernel, OpenCLReleaseKernel> KernelUniquePtr;
 	typedef std::shared_ptr<_cl_event> EventSharedPtr;
 	typedef std::weak_ptr<_cl_event> EventWeakPtr;
@@ -165,12 +172,23 @@ namespace opencl_helper
 	};
 
 
-	template<class Function>
+	struct OpenCLCallbackFunctionBase
+	{
+	public:
+		virtual void operator()(cl_int eventCmdExecStatus)
+		{
+
+		}
+	};
+
+	//template<class Function>
 	class OpenCLEventCallback
 	{
 	private:
-		Function function;
+		//Function function;
+		OpenCLCallbackFunctionBase& function;
 	public:
+		/*
 		OpenCLEventCallback(Function function)
 			:function(function)
 		{
@@ -179,13 +197,26 @@ namespace opencl_helper
 		OpenCLEventCallback(Function &&function)
 		{
 			OpenCLEventCallback::function = std::move(function);
-		}		
+		}	
+		*/
+
+		OpenCLEventCallback(OpenCLCallbackFunctionBase& function)
+			:function(function)
+		{
+		}
+		/*
+		OpenCLEventCallback(OpenCLCallbackFunctionBase &&function)
+		{
+			OpenCLEventCallback::function = std::move(function);
+		}
+		*/
 
 
 		static void Callback(cl_event event, cl_int eventCmdExecStatus, void *self)
 		{
 			
-			static_cast< OpenCLEventCallback<Function>* >(self)->function(eventCmdExecStatus);
+			//static_cast< OpenCLEventCallback<Function>* >(self)->function(eventCmdExecStatus);
+			static_cast< OpenCLEventCallback* >(self)->function(eventCmdExecStatus);
 		}
 		
 		
@@ -228,6 +259,7 @@ namespace opencl_helper
 			return status;
 		}
 
+		/*
 		template <template <class...> class CallbackClass, class Function>
 		void SetCallback(CallbackClass<Function> &callback, cl_int cmdExecCallBackType)
 		{
@@ -238,6 +270,18 @@ namespace opencl_helper
 				throw OpenCLException(err, "clSetEventCallback");
 			}
 			
+		}
+		*/
+
+		void SetCallback(OpenCLEventCallback &callback, cl_int cmdExecCallBackType)
+		{
+			cl_int err = clSetEventCallback(event.get(), cmdExecCallBackType, callback.Callback, &callback);
+
+			if (err != CL_SUCCESS)
+			{
+				throw OpenCLException(err, "clSetEventCallback");
+			}
+
 		}
 
 		void FlushUserEvent()
@@ -269,6 +313,8 @@ namespace opencl_helper
 			}
 			return cmdType;
 		}
+
+		friend std::ostream& ::operator<<(std::ostream& os, const opencl_helper::OpenCLEvent& event);
 	};
 
 	class OpenCLEventList : public std::vector<cl_event>
@@ -367,6 +413,8 @@ namespace opencl_helper
 			}
 			return eventList;
 		}
+
+		friend std::ostream& ::operator<<(std::ostream& os, const opencl_helper::OpenCLEvents& events);
 	};
 
 
@@ -376,6 +424,10 @@ namespace opencl_helper
 		cl_bool available;
 
 		cl_bool hostUnifiedMemory;
+
+#ifdef OCL_HELPER_V2_SUPPORT
+		cl_device_svm_capabilities svmCapabilities;
+#endif
 		std::string vendor;
 		std::string name;
 		std::string version;
@@ -445,6 +497,12 @@ namespace opencl_helper
 			return (bool)hostUnifiedMemory;
 		}
 
+#ifdef OCL_HELPER_V2_SUPPORT
+		cl_device_svm_capabilities SVMCapabilities()
+		{
+			return svmCapabilities;
+		}
+#endif
 		std::string GetName()
 		{
 			return name;
@@ -586,6 +644,10 @@ namespace opencl_helper
 
 		bool unifiedMemoryAvailable;
 
+#ifdef OCL_HELPER_V2_SUPPORT
+		cl_device_svm_capabilities svmCapabilities;
+#endif
+
 	public:
 		//It is recommended that devices are provided from OpenCLPlatforms::GetDeviceList
 		OpenCLContext(const OpenCLDevices& devices, bool enableOutOfOrderMode = false);
@@ -685,6 +747,13 @@ namespace opencl_helper
 			}
 		}		
 */
+
+#ifdef OCL_HELPER_V2_SUPPORT
+		cl_device_svm_capabilities SVMCapabilities()
+		{
+			return svmCapabilities;
+		}
+#endif
 	};
 
 
@@ -736,101 +805,331 @@ namespace opencl_helper
 	};
 
 
-  
-		
-	class OpenCLKernel
+#ifdef OCL_HELPER_V2_SUPPORT
+
+
+	template<class T>
+	class OpenCLSVMBuffer
 	{
 	private:
-
-		struct Argument
+		class ReleaseSVMBuffer
 		{
-			void* address;
-			cl_int size;
+		private:
+			ContextWeakPtr context;
 		public:
-			Argument()
+			ReleaseSVMBuffer(ContextWeakPtr context)
+				: context(context)
 			{
-				address = nullptr;
-				size = 0;
+			}
+
+			ReleaseSVMBuffer() {}
+
+			void operator()(T *t)
+			{
+				if (!context.expired())
+				{
+					clSVMFree(context.lock().get(), t);
+				}
 			}
 		};
-		
-		std::string name;
 
-		OpenCLContext *context;
-		//OpenCLProgram& program;
-		//OpenCLProgram* program; //Change from reference to pointer to define copy constructor (because program could not be overwritten)
-		ProgramWeakPtr program;
-		KernelUniquePtr kernel;
-//		cl_kernel kernel;
 
-		std::vector<Argument> arguments; //The address and its size of arguments are stored to retain arguments in copied objects.
+		size_t size;
+
+		typedef std::unique_ptr<T[], ReleaseSVMBuffer> SVMBuffer;
+		SVMBuffer buffer;
+		ContextWeakPtr context;
+		CommandQueueWeakPtr defaultQueue;
+		CommandQueueWeakPtr queueForUnmap;
+
+		cl_svm_mem_flags memflags;
 
 	public:
-
-		//A kernel-function that is named 'name' is loaded from program
-		OpenCLKernel(OpenCLProgram& program, std::string name);
-		OpenCLKernel(OpenCLProgram& program, cl_kernel kernel);		
-		OpenCLKernel(const OpenCLKernel &openclKernel);
-
-		OpenCLKernel& operator=(const OpenCLKernel &src);
-		
-	
-		template<typename T>
-		void SetArgument(unsigned int argIndex, T& arg)
+		OpenCLSVMBuffer(OpenCLContext & context, size_t size, cl_svm_mem_flags flags)
+			: size(size), memflags(flags)
 		{
+			cl_device_svm_capabilities svmCapabilities = context.SVMCapabilities();
 
-			cl_int err = clSetKernelArg(kernel.get(), (cl_uint)argIndex, sizeof(T), (void*)&arg);
-			if(err != CL_SUCCESS) throw OpenCLException(err, "clSetKernelArg", name.c_str());
-			arguments[argIndex].address = (void*)&arg;
-			arguments[argIndex].size = sizeof(T);
+			if (!svmCapabilities)
+			{
+				throw OpenCLException(CL_INVALID_MEM_OBJECT, "OpenCLSVMBuffer::OpenCLSVMBuffer", "SVM is not supported.");
+			}
+
+			if (((bool)(flags & CL_MEM_SVM_FINE_GRAIN_BUFFER) && !(bool)(svmCapabilities & CL_DEVICE_SVM_FINE_GRAIN_BUFFER)))
+			{
+				throw OpenCLException(CL_INVALID_MEM_OBJECT, "OpenCLSVMBuffer::OpenCLSVMBuffer", "SVM fine grain buffer is not supported.");
+			}
+
+			if (((bool)(flags & CL_MEM_SVM_ATOMICS) && !(bool)(svmCapabilities & CL_DEVICE_SVM_ATOMICS)))
+			{
+				throw OpenCLException(CL_INVALID_MEM_OBJECT, "OpenCLSVMBuffer::OPenCLSVMBuffer", "SVM atomic operation is not supported");
+			}
+
+			
+
+			OpenCLSVMBuffer::context = context.GetContext();
+
+			if (OpenCLSVMBuffer::context.expired())
+			{
+				throw OpenCLException(CL_INVALID_CONTEXT, "OpenCLSVMBuffer::OpenCLSVMBuffer");
+			}
+			T *t = static_cast<T*>(clSVMAlloc(OpenCLSVMBuffer::context.lock().get(), flags, sizeof(T)*size, 0));
+
+			if (t == nullptr)
+			{
+				throw OpenCLException(CL_INVALID_MEM_OBJECT, "clSVMAlloc");
+			}
+			buffer = SVMBuffer(t, ReleaseSVMBuffer(OpenCLSVMBuffer::context));
+			defaultQueue = context.GetQueue(0);
 		}
 
-		void SetArgument(unsigned int argIndex, cl_mem arg)
+		OpenCLSVMBuffer(OpenCLSVMBuffer<T> &src)
+			: size(src.size), memflags(src.memflags), defaultQueue(src.defaultQueue), context(src.context)
 		{
 
-			cl_int err = clSetKernelArg(kernel.get(), (cl_uint)argIndex, sizeof(cl_mem), (void*)&arg);
-			if(err != CL_SUCCESS) throw OpenCLException(err, "clSetKernelArg", name.c_str());
-			arguments[argIndex].address = (void*)&arg;
-			arguments[argIndex].size = sizeof(cl_mem);
-		}		
 
+			if (context.expired())
+			{
+				throw OpenCLException(CL_INVALID_CONTEXT, "OpenCLSVMBuffer::OpenCLSVMBuffer");
+			}
+			T *t = static_cast<T*>(clSVMAlloc(context.lock().get(), memflags, sizeof(T)*size, 0));
 
-		std::string GetName()
-		{
-			return name;
+			if (t == nullptr)
+			{
+				throw OpenCLException(CL_INVALID_MEM_OBJECT, "clSVMAlloc");
+			}
+			buffer = SVMBuffer(t, ReleaseSVMBuffer(context));
+
+			if (defaultQueue.expired())
+			{
+				throw OpenCLException(CL_INVALID_QUEUE_PROPERTIES, "OpenCLSVMBuffer::OpenCLSVMBuffer");
+			}
+			cl_int err = clEnqueueSVMMemcpy(defaultQueue.lock().get(), CL_TRUE, buffer.get(), src.buffer.get(), size * sizeof(T), 0, nullptr, nullptr);
+
+			if (err != CL_SUCCESS)
+			{
+				throw OpenCLException(err, "clEnqueueSVMMemcpy");
+			}
 		}
 
+		OpenCLEvent MapToHost(CommandQueueWeakPtr queue)
+		{
+			if (queue.expired())
+			{
+				throw OpenCLException(CL_INVALID_CONTEXT, "OpenCLSVMBuffer::MapToHost");
+			}
+			cl_event event;
+			cl_int err = clEnqueueSVMMap(queue.lock().get(),
+				CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, buffer.get(), sizeof(T)*size, 0, nullptr, &event);
 
-		OpenCLEvent Execute(CommandQueueWeakPtr queue, cl_uint ndim, const std::vector<size_t> &globalWorkSize, const std::vector<size_t> &localWorkSize);
-		OpenCLEvent Execute(CommandQueueWeakPtr queue, cl_uint ndim, const std::vector<size_t> &globalWorkSize);
+			if (err != CL_SUCCESS)
+			{
+				throw OpenCLException(err, "clEnqueueSVMMap");
+			}
+			queueForUnmap = queue;
+			return std::move(OpenCLEvent(event));
+		}
 
+		OpenCLEvent MapToHost()
+		{
+			return std::move(MapToHost(defaultQueue));
+		}
 
-		OpenCLEvent Execute(CommandQueueWeakPtr queue, cl_uint ndim, const std::vector<size_t> &globalWorkSize, const std::vector<size_t> &localWorkSize, OpenCLEventList &eventWaitList);
-		OpenCLEvent Execute(CommandQueueWeakPtr queue, cl_uint ndim, const std::vector<size_t> &globalWorkSize, OpenCLEventList &eventWaitList);			
+		OpenCLEvent MapToHost(CommandQueueWeakPtr queue, OpenCLEventList &eventList)
+		{
+			if (queue.expired())
+			{
+				throw OpenCLException(CL_INVALID_CONTEXT, "OpenCLSVMBuffer::MapToHost");
+			}
+			cl_event event;
+			cl_int err = clEnqueueSVMMap(queue.lock().get(),
+				CL_FALSE, CL_MAP_READ | CL_MAP_WRITE, buffer.get(), sizeof(T)*size,
+				eventList.size(), eventList.GetList(), &event);
 
+			if (err != CL_SUCCESS)
+			{
+				throw OpenCLException(err, "clEnqueueSVMMap");
+			}
+
+			queueForUnmap = queue;
+			return std::move(OpenCLEvent(event));
+		}
+
+		OpenCLEvent MapToHost(OpenCLEventList &eventList)
+		{
+			return std::move(MapToHost(defaultQueue));
+		}
+
+		OpenCLEvent Unmap()
+		{
+			if (queueForUnmap.expired())
+			{
+				throw OpenCLException(CL_INVALID_CONTEXT, "OpenCLSVMBuffer::Unmap");
+			}
+			cl_event event;
+			cl_int err = clEnqueueSVMUnmap(queueForUnmap.lock().get(), buffer.get(), 0, nullptr, &event);
+
+			if (err != CL_SUCCESS)
+			{
+				throw OpenCLException(err, "clEnqueueSVMUnmap");
+			}
+			return std::move(OpenCLEvent(event));
+		}
+
+		OpenCLEvent Unmap(OpenCLEventList &eventList)
+		{
+			if (queueForUnmap.expired())
+			{
+				throw OpenCLException(CL_INVALID_CONTEXT, "OpenCLSVMBuffer::Unmap");
+			}
+			cl_event event;
+			cl_int err = clEnqueueSVMUnmap(queueForUnmap.lock().get(), buffer.get(),
+				eventList.size(), eventList.GetList(), &event);
+
+			if (err != CL_SUCCESS)
+			{
+				throw OpenCLException(err, "clEnqueueSVMUnmap");
+			}
+			return std::move(OpenCLEvent(event));
+		}
+
+		T& operator[](size_t i)
+		{
+			return buffer[i];
+		}
+
+		T* GetPointer()
+		{
+			return buffer.get();
+		}
+
+		T* begin()
+		{
+			return buffer.get();
+		}
+
+		T* end()
+		{
+			return buffer.get() + size;
+		}
+
+		size_t Size()
+		{
+			return size;
+		}
+
+		OpenCLEvent CopyFrom(OpenCLCommandQueue &queue, OpenCLSVMBuffer<T> &src)
+		{
+			if (queue.expired())
+			{
+				throw OpenCLException(CL_INVALID_COMMAND_QUEUE, "OpenCLSVMBuffer::CopyFrom");
+			}
+
+			cl_event event;
+			cl_int err = clEnqueueSVMMemcpy(queue.lock().get(),
+				CL_TRUE, buffer.get(), src.GetPointer(), size * sizeof(T), 0, nullptr, &event);
+
+			if (err != CL_SUCCESS)
+			{
+				throw OpenCLException(err, "clEnqueueSVMMemcpy");
+			}
+
+			return std::move(OpenCLEvent(event));
+		}
+
+		OpenCLEvent CopyFrom(OpenCLSVMBuffer<T> &src)
+		{
+			return std::move(CopyFrom(src, defaultQueue));
+		}
+
+		OpenCLEvent CopyFrom(OpenCLCommandQueue &queue, OpenCLSVMBuffer<T> &src, OpenCLEventList &eventList)
+		{
+			if (queue.expired())
+			{
+				throw OpenCLException(CL_INVALID_COMMAND_QUEUE, "OpenCLSVMBuffer::CopyFrom");
+			}
+
+			cl_event event;
+			cl_int err = clEnqueueSVMMemcpy(queue.lock().get(),
+				CL_FALSE, buffer.get(), src.GetPointer(), size * sizeof(T), eventList.size(), eventList.GetList(), &event);
+
+			if (err != CL_SUCCESS)
+			{
+				throw OpenCLException(err, "clEnqueueSVMMemcpy");
+			}
+
+			return std::move(OpenCLEvent(event));
+		}
+
+		OpenCLEvent CopyFrom(OpenCLSVMBuffer<T> &src, OpenCLEventList &eventList)
+		{
+
+			return std::move(CopyFrom(defaultQueue, src, eventList));
+		}
+
+		OpenCLEvent FillPattern(OpenCLCommandQueue &queue, OpenCLSVMBuffer<T> &pattern)
+		{
+			if (queue.expired())
+			{
+				throw OpenCLException(CL_INVALID_COMMAND_QUEUE, "OpenCLSVMBuffer::FillPattern");
+			}
+
+			if ((pattern.Size() > size) || (size % pattern.Size()))
+			{
+				throw OpenCLException(CL_INVALID_OPERATION, "OpenCLSVMBuffer::FillPattern");
+			}
+
+			cl_event event;
+
+			cl_int err = clEnqueueSVMMemFill(queue.lock().get(), buffer.get(), pattern.GetPointer(),
+				sizeof(T)*pattern.Size(), size, 0, nullptr, &cl_event);
+			
+			if (err != CL_SUCCESS)
+			{
+				throw OpenCLException(err, "clEnqueueSVMMemfill");
+			}
+
+			return std::move(OpenCLEvent(event));
+		}
+
+		OpenCLEvent FillPattern(OpenCLCommandQueue &queue, OpenCLSVMBuffer<T> &pattern, OpenCLEventList &eventList)
+		{
+			if (queue.expired())
+			{
+				throw OpenCLException(CL_INVALID_COMMAND_QUEUE, "OpenCLSVMBuffer::FillPattern");
+			}
+
+			if ((pattern.Size() > size) || (size % pattern.Size()))
+			{
+				throw OpenCLException(CL_INVALID_OPERATION, "OpenCLSVMBuffer::FillPattern");
+			}
+
+			cl_event event;
+
+			cl_int err = clEnqueueSVMMemFill(queue.lock().get(), buffer.get(), pattern.GetPointer(),
+				sizeof(T)*pattern.Size(), size, eventList.size(), eventList.GetList(), &cl_event);
+
+			if (err != CL_SUCCESS)
+			{
+				throw OpenCLException(err, "clEnqueueSVMMemfill");
+			}
+
+			return std::move(OpenCLEvent(event));
+		}
+
+		OpenCLEvent FillPattern(OpenCLSVMBuffer<T> &pattern)
+		{
+			return std::move(FillPattern(defaultQueue, pattern));
+		}
+
+		OpenCLEvent FillPattern(OpenCLSVMBuffer<T> &pattern, OpenCLEventList &eventList)
+		{
+			return std::move(FillPattern(defaultQueue, pattern, eventList));
+		}
 
 	};
-
-	class OpenCLKernels : public std::unordered_map<std::string, OpenCLKernel>
-	{
-
-	public:
-
+#endif
 		
-		OpenCLKernel& operator[](std::string kernelName)
-		{
-			OpenCLKernel *p;
-			try
-			{
-				p = &(at(kernelName));
-			}
-			catch(std::out_of_range e)				
-			{
-				throw OpenCLException(CL_INVALID_KERNEL, "OpenCLKernels::operator[]");
-			}
-			return *p;
-		}
-	};	
 
 	
 	template<typename T>
@@ -842,7 +1141,8 @@ namespace opencl_helper
 		unsigned int mappedSize;
 		unsigned int offset;
 
-		MemObjectUniquePtr buffer;
+		//MemObjectUniquePtr buffer;
+		MemObjectSharedPtr buffer;
 		cl_mem_flags rwflag;
 		
 		T* mappedPointer;
@@ -880,12 +1180,13 @@ namespace opencl_helper
 				throw OpenCLException(err, "clCreateBuffer");
 			}
 
-			buffer = MemObjectUniquePtr(buf);
+			//buffer = MemObjectUniquePtr(buf);
+			buffer = MemObjectSharedPtr(buf, OpenCLReleaseMemObject());
 			defaultQueue = context.GetQueue(0);
 
 		}
 
-		OpenCLBufferBase(const OpenCLBufferBase &src)
+		OpenCLBufferBase(const OpenCLBufferBase<T> &src)
 			: context(src.context), size(src.size), mappedPointer(src.mappedPointer), mappedSize(src.mappedSize), offset(src.offset),
 			  readWriteMode(src.readWriteMode), rwflag(src.rwflag), defaultQueue(src.defaultQueue)
 		{
@@ -908,7 +1209,8 @@ namespace opencl_helper
 				throw OpenCLException(err, "clCreateBuffer");
 			}
 
-			buffer = MemObjectUniquePtr(buf);
+			buffer = MemObjectSharedPtr(buf, clReleaseMemObject());
+			//buffer = MemObjectUniquePtr(buf);
 				
 			CommandQueueWeakPtr wque = context.GetQueue();
 			if(wque.expired())
@@ -939,12 +1241,16 @@ namespace opencl_helper
 		{
 			return mappedSize;
 		}
-	
+	/*
 		const cl_mem GetMemObject()
 		{
 			return buffer.get();
 		}
-
+*/
+		MemObjectWeakPtr GetMemObject()
+		{
+			return std::move(MemObjectWeakPtr(buffer));
+		}
 		T* GetMappedPointer()
 		{
 			return this->mappedPointer;
@@ -1182,7 +1488,7 @@ namespace opencl_helper
 			return *(this->mappedPointer + i);
 		}
 
-		OpenCLUnifiedBuffer(const OpenCLUnifiedBuffer &src)
+		OpenCLUnifiedBuffer(const OpenCLUnifiedBuffer<T> &src)
 			: OpenCLBufferBase<T>(src)
 								  
 		{
@@ -1378,7 +1684,7 @@ namespace opencl_helper
 			return *(this->mappedPointer + i);
 		}
 
-		OpenCLDeviceBuffer(const OpenCLDeviceBuffer &src)
+		OpenCLDeviceBuffer(const OpenCLDeviceBuffer<T> &src)
 			: OpenCLBufferBase<T>(src)
 								  
 		{
@@ -1398,6 +1704,218 @@ namespace opencl_helper
 				std::copy(src.hostMemory, src.hostMemory + src.size, this->hostMemory);
 			}
 		}				
+	};
+
+#ifdef OCL_HELPER_V2_SUPPORT
+	class OpenCLSVMPointers : public std::vector<void*>
+	{
+	public:
+		template<class T>
+		void push_back(OpenCLSVMBuffer<T> &buf)
+		{
+			void* addr = (void*)buf.GetPointer();
+			std::vector<void*>::push_back(addr);
+		}
+
+		void push_back(void* addr)
+		{
+			std::vector<void*>::push_back(addr);
+		}
+
+		void** GetList()
+		{
+			if (empty())
+			{
+				return nullptr;
+			}
+			else
+			{
+				return &(at(0));
+			}
+		}
+	};
+#endif
+
+	class OpenCLKernel
+	{
+	private:
+
+		template<class T>
+		class IsOpenCLBuffer
+		{
+		private:
+			template<class U>
+			static auto Check(U u) -> decltype(u.GetMemObject(), std::true_type());
+
+			static auto Check(...) -> decltype(std::false_type());
+
+		public:
+			typedef decltype(Check(std::declval<T>())) type;
+			static bool constexpr value = type::value;
+		};
+
+		struct Argument
+		{
+			void* address;
+			cl_int size;
+			MemObjectWeakPtr buffer;
+#ifdef OCL_HELPER_V2_SUPPORT
+			bool svm;
+#endif
+		public:
+			Argument()
+			{
+				address = nullptr;
+				size = 0;
+#ifdef OCL_HELPER_V2_SUPPORT
+				svm = false;
+#endif
+			}
+		};
+
+		std::string name;
+
+		OpenCLContext *context;
+		//OpenCLProgram& program;
+		//OpenCLProgram* program; //Change from reference to pointer to define copy constructor (because program could not be overwritten)
+		ProgramWeakPtr program;
+		KernelUniquePtr kernel;
+		//		cl_kernel kernel;
+
+		std::vector<Argument> arguments; //The address and its size of arguments are stored to retain arguments in copied objects.
+
+#ifdef OCL_HELPER_V2_SUPPORT
+		OpenCLSVMPointers svmPointers;
+#endif
+	public:
+
+		//A kernel-function that is named 'name' is loaded from program
+		OpenCLKernel(OpenCLProgram& program, std::string name);
+		OpenCLKernel(OpenCLProgram& program, cl_kernel kernel);
+		OpenCLKernel(const OpenCLKernel &openclKernel);
+
+		OpenCLKernel& operator=(const OpenCLKernel &src);
+
+#ifdef OCL_HELPER_V2_SUPPORT
+		template<class T>
+		void SetArgument(unsigned int argIndex, OpenCLSVMBuffer<T> &buf)
+		{
+
+			cl_int err = clSetKernelArgSVMPointer(kernel.get(), (cl_uint)argIndex, (void*)buf.GetPointer());
+			if (err != CL_SUCCESS) throw OpenCLException(err, "clSetKernelArg", name.c_str());
+			arguments[argIndex].address = (void*)buf.GetPointer();
+			arguments[argIndex].size = sizeof(T*);
+			arguments[argIndex].svm = true;
+		}
+#endif
+
+		void SetArgument(unsigned int argIndex, MemObjectWeakPtr buffer)
+		{
+
+			if (buffer.expired())
+			{
+				throw OpenCLException(CL_INVALID_MEM_OBJECT, "OpenCLKernel::SetArgument", name.c_str());
+			}
+			cl_mem mem = buffer.lock().get();
+			cl_int err = clSetKernelArg(kernel.get(), (cl_uint)argIndex, sizeof(cl_mem), (void*)&mem);
+			if (err != CL_SUCCESS) throw OpenCLException(err, "clSetKernelArg", name.c_str());
+			arguments[argIndex].address = nullptr;
+			arguments[argIndex].buffer = buffer;
+			arguments[argIndex].size = sizeof(cl_mem);
+#ifdef OCL_HELPER_V2_SUPPORT
+			arguments[argIndex].svm = false;
+#endif
+
+		}
+
+		template<class OpenCLBuffer, typename std::enable_if< IsOpenCLBuffer<OpenCLBuffer>::value, std::nullptr_t>::type = nullptr>
+		void SetArgument(unsigned int argIndex, OpenCLBuffer &bufferObject)
+		{
+			MemObjectWeakPtr buffer = bufferObject.GetMemObject();
+			if (buffer.expired())
+			{
+				throw OpenCLException(CL_INVALID_MEM_OBJECT, "OpenCLKernel::SetArgument", name.c_str());
+			}
+			cl_mem mem = buffer.lock().get();
+			cl_int err = clSetKernelArg(kernel.get(), (cl_uint)argIndex, sizeof(cl_mem), (void*)&mem);
+			if (err != CL_SUCCESS) throw OpenCLException(err, "clSetKernelArg", name.c_str());
+			arguments[argIndex].address = nullptr;
+			arguments[argIndex].buffer = buffer;
+			arguments[argIndex].size = sizeof(cl_mem);
+#ifdef OCL_HELPER_V2_SUPPORT
+			arguments[argIndex].svm = false;
+#endif
+
+		}
+
+
+		template<class T, typename std::enable_if< std::is_arithmetic<T>::value, std::nullptr_t>::type = nullptr>
+		void SetArgument(unsigned int argIndex, T& arg)
+		{
+			cl_int err = clSetKernelArg(kernel.get(), (cl_uint)argIndex, sizeof(T), (void*)&arg);
+			if (err != CL_SUCCESS) throw OpenCLException(err, "clSetKernelArg", name.c_str());
+			arguments[argIndex].address = (void*)&arg;
+			arguments[argIndex].size = sizeof(T);
+#ifdef OCL_HELPER_V2_SUPPORT
+			arguments[argIndex].svm = false;
+#endif
+		}
+
+
+#ifdef OCL_HELPER_V2_SUPPORT
+
+		void PassAdditionalSVMPointers(OpenCLSVMPointers &pointerList)
+		{
+			cl_int err = clSetKernelExecInfo(kernel.get(), CL_KERNEL_EXEC_INFO_SVM_PTRS,
+				pointerList.size()*sizeof(void*), pointerList.GetList());
+
+			if (err != CL_SUCCESS)
+			{
+				throw OpenCLException(err, "clSetKernelExecInfo");
+			}
+
+			svmPointers.reserve(svmPointers.size() + pointerList.size());
+			std::copy(pointerList.begin(), pointerList.end(), std::back_inserter(svmPointers));
+		}
+#endif
+
+
+
+		std::string GetName()
+		{
+			return name;
+		}
+
+
+		OpenCLEvent Execute(CommandQueueWeakPtr queue, cl_uint ndim, const std::vector<size_t> &globalWorkSize, const std::vector<size_t> &localWorkSize);
+		OpenCLEvent Execute(CommandQueueWeakPtr queue, cl_uint ndim, const std::vector<size_t> &globalWorkSize);
+
+
+		OpenCLEvent Execute(CommandQueueWeakPtr queue, cl_uint ndim, const std::vector<size_t> &globalWorkSize, const std::vector<size_t> &localWorkSize, OpenCLEventList &eventWaitList);
+		OpenCLEvent Execute(CommandQueueWeakPtr queue, cl_uint ndim, const std::vector<size_t> &globalWorkSize, OpenCLEventList &eventWaitList);
+
+
+	};
+
+	class OpenCLKernels : public std::unordered_map<std::string, OpenCLKernel>
+	{
+
+	public:
+
+
+		OpenCLKernel & operator[](std::string kernelName)
+		{
+			OpenCLKernel *p;
+			try
+			{
+				p = &(at(kernelName));
+			}
+			catch (std::out_of_range e)
+			{
+				throw OpenCLException(CL_INVALID_KERNEL, "OpenCLKernels::operator[]");
+			}
+			return *p;
+		}
 	};
 
 
