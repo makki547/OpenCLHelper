@@ -24,7 +24,7 @@
 #include <regex>
 #include <type_traits>
 
-#define OCL_HELPER_V2_SUPPORT
+//#define OCL_HELPER_V2_SUPPORT
 
 namespace opencl_helper
 {
@@ -1209,7 +1209,7 @@ namespace opencl_helper
 				throw OpenCLException(err, "clCreateBuffer");
 			}
 
-			buffer = MemObjectSharedPtr(buf, clReleaseMemObject());
+			buffer = MemObjectSharedPtr(buf, OpenCLReleaseMemObject());
 			//buffer = MemObjectUniquePtr(buf);
 				
 			CommandQueueWeakPtr wque = context.GetQueue();

@@ -712,9 +712,9 @@ opencl_helper::OpenCLKernel::OpenCLKernel(OpenCLProgram& program, cl_kernel kern
 }
 
 opencl_helper::OpenCLKernel::OpenCLKernel(const OpenCLKernel &openclKernel)
-	: name(openclKernel.name), program(openclKernel.program), arguments(openclKernel.arguments), context(openclKernel.context),
+	: name(openclKernel.name), program(openclKernel.program), arguments(openclKernel.arguments), context(openclKernel.context)
 #ifdef OCL_HELPER_V2_SUPPORT
-	svmPointers(openclKernel.svmPointers)
+	, svmPointers(openclKernel.svmPointers)
 #endif
 {
 
